@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -227,10 +228,57 @@ export default {
 	return nil
 }
 
+func ensureTsconfigAlias(frontendDir string) error {
+	tsconfigPath := filepath.Join(frontendDir, "tsconfig.json")
+	data, err := os.ReadFile(tsconfigPath)
+	if err != nil {
+		return err
+	}
+
+	var ts map[string]any
+	if err := json.Unmarshal(data, &ts); err != nil {
+		return err
+	}
+
+	compiler, ok := ts["compilerOptions"].(map[string]any)
+	if !ok {
+		compiler = map[string]any{}
+	}
+
+	// Ensure baseUrl is set
+	if _, ok := compiler["baseUrl"]; !ok {
+		compiler["baseUrl"] = "."
+	}
+
+	// Ensure paths["@/*"] = ["./src/*"]
+	paths, ok := compiler["paths"].(map[string]any)
+	if !ok {
+		paths = map[string]any{}
+	}
+	if _, ok := paths["@/*"]; !ok {
+		paths["@/*"] = []any{"./src/*"}
+	}
+
+	compiler["paths"] = paths
+	ts["compilerOptions"] = compiler
+
+	out, err := json.MarshalIndent(ts, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(tsconfigPath, out, 0o644)
+}
+
 func setupShadcn(frontendDir string) error {
 	fmt.Println("◦ Setting up shadcn/ui...")
 
-	// Initialize shadcn/ui
+	// 1) Ensure tsconfig.json has the @/* alias required by shadcn
+	if err := ensureTsconfigAlias(frontendDir); err != nil {
+		return fmt.Errorf("tsconfig alias: %w", err)
+	}
+
+	// 2) Initialize shadcn/ui
 	initCmd := exec.Command("bunx", "shadcn@latest", "init")
 	initCmd.Dir = frontendDir
 	initCmd.Stdout = os.Stdout
@@ -239,7 +287,7 @@ func setupShadcn(frontendDir string) error {
 		return err
 	}
 
-	// Add a basic component (button) as proof shadcn is wired up
+	// 3) Add a basic component as proof that shadcn works
 	addCmd := exec.Command("bunx", "shadcn@latest", "add", "button")
 	addCmd.Dir = frontendDir
 	addCmd.Stdout = os.Stdout
