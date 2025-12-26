@@ -315,6 +315,9 @@ func (m WizardModel) viewSummary() string {
 		docker = "yes"
 	}
 	b.WriteString(fmt.Sprintf("Docker:     %s\n\n", OptionStyle.Render(docker)))
+	b.WriteString(
+		HelpStyle.Render("Press Enter/y to create the project, h to go back, q to quit."),
+	)
 
 	return BoxStyle.Render(b.String())
 }
