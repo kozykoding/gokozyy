@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // Config is what you’ll pass from the TUI.
@@ -18,7 +19,9 @@ type Config struct {
 }
 
 func generateFrontend(cfg Config) error {
-	frontendDir := cfg.ProjectName + "/frontend"
+	frontendDir := filepath.Join(cfg.ProjectName, "frontend")
+
+	fmt.Printf("◦ Scaffolding frontend in %s...\n", frontendDir)
 
 	if err := runBunCreateVite(cfg.ProjectName, "frontend"); err != nil {
 		return fmt.Errorf("bun create vite: %w", err)
@@ -28,7 +31,25 @@ func generateFrontend(cfg Config) error {
 		return fmt.Errorf("bun install: %w", err)
 	}
 
-	// later: setupTailwind / setupShadcn based on cfg.Frontend
+	// Tailwind setup (always, for both frontend options you defined)
+	if err := setupTailwind(frontendDir); err != nil {
+		return fmt.Errorf("tailwind setup: %w", err)
+	}
+
+	// shadcn/ui only if requested
+	if cfg.Frontend == "vite-react-tailwind-shadcn" {
+		if err := setupShadcn(frontendDir); err != nil {
+			return fmt.Errorf("shadcn setup: %w", err)
+		}
+	}
+
+	fmt.Println()
+	fmt.Printf("Done! Don't forget to cd %s.\n", cfg.ProjectName)
+	fmt.Println("Now run:")
+	fmt.Println("  cd frontend")
+	fmt.Println("  bun dev")
+	fmt.Println()
+
 	return nil
 }
 
@@ -119,6 +140,116 @@ func main() {
 }
 `
 	return os.WriteFile(filepath.Join(dir, "main.go"), []byte(code), 0o644)
+}
+
+func setupTailwind(frontendDir string) error {
+	// Install Tailwind CSS v3 + PostCSS + Autoprefixer with Bun
+	fmt.Println("◦ Installing Tailwind CSS...")
+
+	cmd := exec.Command("bun", "add", "-D",
+		"tailwindcss@3",
+		"postcss",
+		"autoprefixer",
+	)
+	cmd.Dir = frontendDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	// Write tailwind.config.js
+	twConfig := `/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+`
+	if err := os.WriteFile(
+		filepath.Join(frontendDir, "tailwind.config.js"),
+		[]byte(twConfig),
+		0o644,
+	); err != nil {
+		return err
+	}
+
+	// Write postcss.config.cjs
+	postcssConfig := `module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+`
+	if err := os.WriteFile(
+		filepath.Join(frontendDir, "postcss.config.cjs"),
+		[]byte(postcssConfig),
+		0o644,
+	); err != nil {
+		return err
+	}
+
+	// Overwrite src/index.css with Tailwind directives
+	indexCSS := `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+`
+	if err := os.WriteFile(
+		filepath.Join(frontendDir, "src", "index.css"),
+		[]byte(indexCSS),
+		0o644,
+	); err != nil {
+		return err
+	}
+
+	// Ensure main.tsx imports index.css
+	mainPath := filepath.Join(frontendDir, "src", "main.tsx")
+	mainBytes, err := os.ReadFile(mainPath)
+	if err != nil {
+		return err
+	}
+	if !strings.Contains(string(mainBytes), `./index.css`) {
+		mainBytes = append(
+			[]byte(`import "./index.css";`+"\n"),
+			mainBytes...,
+		)
+		if err := os.WriteFile(mainPath, mainBytes, 0o644); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func setupShadcn(frontendDir string) error {
+	fmt.Println("◦ Setting up shadcn/ui...")
+
+	// Initialize shadcn/ui
+	initCmd := exec.Command("bunx", "shadcn@latest", "init")
+	initCmd.Dir = frontendDir
+	initCmd.Stdout = os.Stdout
+	initCmd.Stderr = os.Stderr
+	if err := initCmd.Run(); err != nil {
+		return err
+	}
+
+	// Add a basic component (button) as proof shadcn is wired up
+	addCmd := exec.Command("bunx", "shadcn@latest", "add", "button")
+	addCmd.Dir = frontendDir
+	addCmd.Stdout = os.Stdout
+	addCmd.Stderr = os.Stderr
+	if err := addCmd.Run(); err != nil {
+		return err
+	}
+
+	fmt.Println("◦ shadcn/ui initialized and button component added.")
+	return nil
 }
 
 func generateBackend(cfg Config) error {
