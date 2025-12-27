@@ -321,7 +321,6 @@ func ensureRootTsconfigAlias(frontendDir string) error {
 func patchRootTsconfig(frontendDir string) error {
 	tsconfigPath := filepath.Join(frontendDir, "tsconfig.json")
 
-	// No parsing, no "invalid character" errors.
 	content := `{
   "files": [],
   "references": [
@@ -342,7 +341,6 @@ func patchRootTsconfig(frontendDir string) error {
 func patchAppTsconfig(frontendDir string) error {
 	appPath := filepath.Join(frontendDir, "tsconfig.app.json")
 
-	// This preserves the default Vite settings but adds shadcn requirements.
 	content := `{
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
@@ -351,22 +349,17 @@ func patchAppTsconfig(frontendDir string) error {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-
-    /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
