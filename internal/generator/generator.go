@@ -320,76 +320,64 @@ func ensureRootTsconfigAlias(frontendDir string) error {
 
 func patchRootTsconfig(frontendDir string) error {
 	tsconfigPath := filepath.Join(frontendDir, "tsconfig.json")
-	fmt.Printf("  [DEBUG] Starting patchRootTsconfig on: %s\n", tsconfigPath)
+	fmt.Printf("  [DEBUG] Overwriting tsconfig.json: %s\n", tsconfigPath)
 
-	data, err := os.ReadFile(tsconfigPath)
-	if err != nil {
-		return fmt.Errorf("read tsconfig.json: %w", err)
-	}
-
-	var ts map[string]any
-	if err := json.Unmarshal(data, &ts); err != nil {
-		return fmt.Errorf("parse tsconfig.json: %w", err)
-	}
-
-	// Explicitly create the block you want
-	compilerOptions := map[string]any{
-		"baseUrl": ".",
-		"paths": map[string]any{
-			"@/*": []string{"./src/*"},
-		},
-	}
-
-	ts["compilerOptions"] = compilerOptions
-
-	out, err := json.MarshalIndent(ts, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal tsconfig.json: %w", err)
-	}
-
-	fmt.Println("  [DEBUG] [REALLY PATCHING] Writing new tsconfig.json content...")
-	return os.WriteFile(tsconfigPath, out, 0o644)
+	content := `{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}
+`
+	return os.WriteFile(tsconfigPath, []byte(content), 0o644)
 }
 
 func patchAppTsconfig(frontendDir string) error {
 	appPath := filepath.Join(frontendDir, "tsconfig.app.json")
-	fmt.Printf("  [DEBUG] Starting patchAppTsconfig on: %s\n", appPath)
+	fmt.Printf("  [DEBUG] Overwriting tsconfig.app.json: %s\n", appPath)
 
-	data, err := os.ReadFile(appPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("read tsconfig.app.json: %w", err)
-	}
+	// Since we can't easily parse the existing one with comments,
+	// we provide a clean, modern version that includes the alias.
+	content := `{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
 
-	var ts map[string]any
-	if err := json.Unmarshal(data, &ts); err != nil {
-		return fmt.Errorf("parse tsconfig.app.json: %w", err)
-	}
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
 
-	compiler, _ := ts["compilerOptions"].(map[string]any)
-	if compiler == nil {
-		compiler = map[string]any{}
-	}
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
 
-	compiler["baseUrl"] = "."
-	paths, _ := compiler["paths"].(map[string]any)
-	if paths == nil {
-		paths = map[string]any{}
-	}
-	paths["@/*"] = []string{"./src/*"}
-
-	compiler["paths"] = paths
-	ts["compilerOptions"] = compiler
-
-	out, err := json.MarshalIndent(ts, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal tsconfig.app.json: %w", err)
-	}
-
-	fmt.Println("  [DEBUG] [REALLY PATCHING] Writing new tsconfig.app.json content...")
-	return os.WriteFile(appPath, out, 0o644)
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}
+`
+	return os.WriteFile(appPath, []byte(content), 0o644)
 }
 
 func setupShadcnManualV4(frontendDir string) error {
