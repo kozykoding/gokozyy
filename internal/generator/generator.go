@@ -320,8 +320,7 @@ func ensureRootTsconfigAlias(frontendDir string) error {
 
 func patchRootTsconfig(frontendDir string) error {
 	tsconfigPath := filepath.Join(frontendDir, "tsconfig.json")
-
-	fmt.Println("  [gokozyy] patchRootTsconfig: reading", tsconfigPath)
+	fmt.Printf("  [DEBUG] Starting patchRootTsconfig on: %s\n", tsconfigPath)
 
 	data, err := os.ReadFile(tsconfigPath)
 	if err != nil {
@@ -333,41 +332,33 @@ func patchRootTsconfig(frontendDir string) error {
 		return fmt.Errorf("parse tsconfig.json: %w", err)
 	}
 
-	compiler, _ := ts["compilerOptions"].(map[string]any)
-	if compiler == nil {
-		compiler = map[string]any{}
+	// Explicitly create the block you want
+	compilerOptions := map[string]any{
+		"baseUrl": ".",
+		"paths": map[string]any{
+			"@/*": []string{"./src/*"},
+		},
 	}
 
-	compiler["baseUrl"] = "."
-	paths, _ := compiler["paths"].(map[string]any)
-	if paths == nil {
-		paths = map[string]any{}
-	}
-	paths["@/*"] = []any{"./src/*"}
-	compiler["paths"] = paths
-	ts["compilerOptions"] = compiler
+	ts["compilerOptions"] = compilerOptions
 
 	out, err := json.MarshalIndent(ts, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal tsconfig.json: %w", err)
 	}
 
-	fmt.Println("  [gokozyy] patchRootTsconfig: writing compilerOptions alias to tsconfig.json")
-
-	if err := os.WriteFile(tsconfigPath, out, 0o644); err != nil {
-		return fmt.Errorf("write tsconfig.json: %w", err)
-	}
-
-	return nil
+	fmt.Println("  [DEBUG] [REALLY PATCHING] Writing new tsconfig.json content...")
+	return os.WriteFile(tsconfigPath, out, 0o644)
 }
 
 func patchAppTsconfig(frontendDir string) error {
 	appPath := filepath.Join(frontendDir, "tsconfig.app.json")
+	fmt.Printf("  [DEBUG] Starting patchAppTsconfig on: %s\n", appPath)
 
 	data, err := os.ReadFile(appPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // some templates may not have this file
+			return nil
 		}
 		return fmt.Errorf("read tsconfig.app.json: %w", err)
 	}
@@ -387,7 +378,7 @@ func patchAppTsconfig(frontendDir string) error {
 	if paths == nil {
 		paths = map[string]any{}
 	}
-	paths["@/*"] = []any{"./src/*"}
+	paths["@/*"] = []string{"./src/*"}
 
 	compiler["paths"] = paths
 	ts["compilerOptions"] = compiler
@@ -397,11 +388,8 @@ func patchAppTsconfig(frontendDir string) error {
 		return fmt.Errorf("marshal tsconfig.app.json: %w", err)
 	}
 
-	if err := os.WriteFile(appPath, out, 0o644); err != nil {
-		return fmt.Errorf("write tsconfig.app.json: %w", err)
-	}
-
-	return nil
+	fmt.Println("  [DEBUG] [REALLY PATCHING] Writing new tsconfig.app.json content...")
+	return os.WriteFile(appPath, out, 0o644)
 }
 
 func setupShadcnManualV4(frontendDir string) error {
