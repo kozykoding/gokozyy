@@ -335,10 +335,13 @@ func setupShadcn(frontendDir string) error {
 		return fmt.Errorf("tsconfig alias: %w", err)
 	}
 
-	// 2) Run `shadcn init` and auto-accept defaults using `yes`
-	//    This chooses the default base color (e.g. Neutral) and
-	//    confirms creating components.json.
-	initCmd := exec.Command("bash", "-lc", "yes | bunx --bun shadcn@latest init")
+	// 2) Initialize shadcn/ui (auto-yes to questions)
+	fmt.Println("  - Running: bunx --bun shadcn@latest init (auto-yes)")
+	initCmd := exec.Command(
+		"bash",
+		"-lc",
+		"yes | bunx --bun shadcn@latest init",
+	)
 	initCmd.Dir = frontendDir
 	initCmd.Stdout = os.Stdout
 	initCmd.Stderr = os.Stderr
@@ -346,8 +349,13 @@ func setupShadcn(frontendDir string) error {
 		return fmt.Errorf("shadcn init: %w", err)
 	}
 
-	// 3) Add a button component, also auto-confirm any prompts
-	addCmd := exec.Command("bash", "-lc", "yes | bunx --bun shadcn@latest add button")
+	// 3) Add button component (no yes pipe unless we see it needed)
+	fmt.Println("  - Running: bunx --bun shadcn@latest add button")
+	addCmd := exec.Command(
+		"bash",
+		"-lc",
+		"bunx --bun shadcn@latest add button",
+	)
 	addCmd.Dir = frontendDir
 	addCmd.Stdout = os.Stdout
 	addCmd.Stderr = os.Stderr
@@ -355,7 +363,16 @@ func setupShadcn(frontendDir string) error {
 		return fmt.Errorf("shadcn add button: %w", err)
 	}
 
-	fmt.Println("◦ shadcn/ui initialized (default options) and button component added.")
+	// 4) Verify the button file exists; fail loudly if it doesn't.
+	buttonPath := filepath.Join(frontendDir, "components", "ui", "button.tsx")
+	if _, err := os.Stat(buttonPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("shadcn add button: expected %s but it was not created", buttonPath)
+		}
+		return fmt.Errorf("checking shadcn button file: %w", err)
+	}
+
+	fmt.Println("◦ shadcn/ui initialized and button component added.")
 	return nil
 }
 
