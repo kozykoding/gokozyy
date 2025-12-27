@@ -329,18 +329,18 @@ func ensureRootTsconfigAlias(frontendDir string) error {
 func patchRootTsconfig(frontendDir string) error {
 	tsconfigPath := filepath.Join(frontendDir, "tsconfig.json")
 
+	fmt.Println("  [gokozyy] patchRootTsconfig: reading", tsconfigPath)
+
 	data, err := os.ReadFile(tsconfigPath)
 	if err != nil {
 		return fmt.Errorf("read tsconfig.json: %w", err)
 	}
 
-	// Parse what is there already
 	var ts map[string]any
 	if err := json.Unmarshal(data, &ts); err != nil {
 		return fmt.Errorf("parse tsconfig.json: %w", err)
 	}
 
-	// Add / update compilerOptions
 	compiler, _ := ts["compilerOptions"].(map[string]any)
 	if compiler == nil {
 		compiler = map[string]any{}
@@ -352,7 +352,6 @@ func patchRootTsconfig(frontendDir string) error {
 		paths = map[string]any{}
 	}
 	paths["@/*"] = []any{"./src/*"}
-
 	compiler["paths"] = paths
 	ts["compilerOptions"] = compiler
 
@@ -360,6 +359,8 @@ func patchRootTsconfig(frontendDir string) error {
 	if err != nil {
 		return fmt.Errorf("marshal tsconfig.json: %w", err)
 	}
+
+	fmt.Println("  [gokozyy] patchRootTsconfig: writing compilerOptions alias to tsconfig.json")
 
 	if err := os.WriteFile(tsconfigPath, out, 0o644); err != nil {
 		return fmt.Errorf("write tsconfig.json: %w", err)
