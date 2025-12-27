@@ -144,13 +144,13 @@ func main() {
 }
 
 func setupTailwind(frontendDir string) error {
-	// Install Tailwind CSS v3 + PostCSS + Autoprefixer with Bun
-	fmt.Println("◦ Installing Tailwind CSS...")
+	fmt.Println("◦ Installing Tailwind CSS (Vite plugin)...")
 
+	// Install tailwindcss, the Vite plugin, and @types/node
 	cmd := exec.Command("bun", "add", "-D",
-		"tailwindcss@3",
-		"postcss",
-		"autoprefixer",
+		"tailwindcss",
+		"@tailwindcss/vite",
+		"@types/node",
 	)
 	cmd.Dir = frontendDir
 	cmd.Stdout = os.Stdout
@@ -159,44 +159,28 @@ func setupTailwind(frontendDir string) error {
 		return err
 	}
 
-	// Write tailwind.config.js
-	twConfig := `/** @type {import('tailwindcss').Config} */
-export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+	// Tailwind config in TypeScript
+	twConfig := `import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {},
   },
   plugins: [],
-}
+};
+
+export default config;
 `
 	if err := os.WriteFile(
-		filepath.Join(frontendDir, "tailwind.config.js"),
+		filepath.Join(frontendDir, "tailwind.config.ts"),
 		[]byte(twConfig),
 		0o644,
 	); err != nil {
 		return err
 	}
 
-	// Write postcss.config.cjs
-	postcssConfig := `module.exports = {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-}
-`
-	if err := os.WriteFile(
-		filepath.Join(frontendDir, "postcss.config.cjs"),
-		[]byte(postcssConfig),
-		0o644,
-	); err != nil {
-		return err
-	}
-
-	// Overwrite src/index.css with Tailwind directives
+	// Tailwind directives in index.css
 	indexCSS := `@tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -225,36 +209,93 @@ export default {
 		}
 	}
 
+	// Overwrite vite.config.ts to match the Tailwind + alias pattern
+	if err := writeViteConfigWithTailwind(frontendDir); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func ensureTsconfigAlias(frontendDir string) error {
-	tsconfigPath := filepath.Join(frontendDir, "tsconfig.json")
-	data, err := os.ReadFile(tsconfigPath)
+func patchViteConfigForTailwind(frontendDir string) error {
+	vitePath := filepath.Join(frontendDir, "vite.config.ts")
+	data, err := os.ReadFile(vitePath)
 	if err != nil {
 		return err
 	}
+
+	content := string(data)
+
+	if strings.Contains(content, "@tailwindcss/vite") {
+		return nil
+	}
+
+	// 1) Ensure import
+	lines := strings.Split(content, "\n")
+	importInserted := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "import react") && !importInserted {
+			lines[i] = line + "\nimport tailwindcss from \"@tailwindcss/vite\";"
+			importInserted = true
+			break
+		}
+	}
+
+	// 2) Ensure plugins array contains tailwindcss()
+	for i, line := range lines {
+		if strings.Contains(line, "plugins: [react(") || strings.Contains(line, "plugins: [react(") {
+			// turn into plugins: [react(), tailwindcss()],
+			if !strings.Contains(line, "tailwindcss(") {
+				line = strings.Replace(line, "react()", "react(), tailwindcss()", 1)
+				lines[i] = line
+			}
+			break
+		}
+	}
+
+	newContent := strings.Join(lines, "\n")
+	return os.WriteFile(vitePath, []byte(newContent), 0o644)
+}
+
+func ensureTsconfigAlias(frontendDir string) error {
+	if err := patchTsconfig(filepath.Join(frontendDir, "tsconfig.json")); err != nil {
+		return err
+	}
+	if err := patchTsconfig(filepath.Join(frontendDir, "tsconfig.app.json")); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func patchTsconfig(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	// "compilerOptions": { "baseUrl": ".", "paths": { "@/*": ["./src/*"] } }
 
 	var ts map[string]any
 	if err := json.Unmarshal(data, &ts); err != nil {
 		return err
 	}
 
-	compiler, ok := ts["compilerOptions"].(map[string]any)
-	if !ok {
+	compiler, _ := ts["compilerOptions"].(map[string]any)
+	if compiler == nil {
 		compiler = map[string]any{}
 	}
 
-	// Ensure baseUrl is set
 	if _, ok := compiler["baseUrl"]; !ok {
 		compiler["baseUrl"] = "."
 	}
 
-	// Ensure paths["@/*"] = ["./src/*"]
-	paths, ok := compiler["paths"].(map[string]any)
-	if !ok {
+	paths, _ := compiler["paths"].(map[string]any)
+	if paths == nil {
 		paths = map[string]any{}
 	}
+
 	if _, ok := paths["@/*"]; !ok {
 		paths["@/*"] = []any{"./src/*"}
 	}
@@ -267,19 +308,42 @@ func ensureTsconfigAlias(frontendDir string) error {
 		return err
 	}
 
-	return os.WriteFile(tsconfigPath, out, 0o644)
+	return os.WriteFile(path, out, 0o644)
+}
+
+func writeViteConfigWithTailwind(frontendDir string) error {
+	viteContent := `import path from "path";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+});
+`
+	return os.WriteFile(
+		filepath.Join(frontendDir, "vite.config.ts"),
+		[]byte(viteContent),
+		0o644,
+	)
 }
 
 func setupShadcn(frontendDir string) error {
 	fmt.Println("◦ Setting up shadcn/ui...")
 
-	// 1) Ensure tsconfig.json has the @/* alias required by shadcn
+	// 1) Ensure tsconfig alias (@/* → ./src/*) in both tsconfig.json and tsconfig.app.json
 	if err := ensureTsconfigAlias(frontendDir); err != nil {
 		return fmt.Errorf("tsconfig alias: %w", err)
 	}
 
-	// 2) Initialize shadcn/ui
-	initCmd := exec.Command("bunx", "shadcn@latest", "init")
+	// 2) Run shadcn init using Bun
+	initCmd := exec.Command("bunx", "--bun", "shadcn@latest", "init")
 	initCmd.Dir = frontendDir
 	initCmd.Stdout = os.Stdout
 	initCmd.Stderr = os.Stderr
@@ -287,8 +351,8 @@ func setupShadcn(frontendDir string) error {
 		return err
 	}
 
-	// 3) Add a basic component as proof that shadcn works
-	addCmd := exec.Command("bunx", "shadcn@latest", "add", "button")
+	// 3) Add button component
+	addCmd := exec.Command("bunx", "--bun", "shadcn@latest", "add", "button")
 	addCmd.Dir = frontendDir
 	addCmd.Stdout = os.Stdout
 	addCmd.Stderr = os.Stderr
