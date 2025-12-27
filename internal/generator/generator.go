@@ -38,15 +38,7 @@ func generateFrontend(cfg Config) error {
 		return fmt.Errorf("tailwind v4 setup: %w", err)
 	}
 
-	// Patch tsconfig files for shadcn / alias behavior
-	if err := patchRootTsconfig(frontendDir); err != nil {
-		return fmt.Errorf("patch root tsconfig: %w", err)
-	}
-	if err := patchAppTsconfig(frontendDir); err != nil {
-		return fmt.Errorf("patch app tsconfig: %w", err)
-	}
-
-	// Optional shadcn manual install
+	// Only patch tsconfig and install shadcn when user selected that option
 	if cfg.Frontend == "vite-react-tailwind-shadcn" {
 		fmt.Println("  [gokozyy] calling setupShadcnManualV4...")
 		if err := setupShadcnManualV4(frontendDir); err != nil {
@@ -415,7 +407,15 @@ func patchAppTsconfig(frontendDir string) error {
 func setupShadcnManualV4(frontendDir string) error {
 	fmt.Println("◦ Setting up shadcn/ui (manual, Tailwind v4)...")
 
-	// 1) Add shadcn-related deps
+	// 1) Ensure tsconfig.json and tsconfig.app.json have the alias shadcn expects
+	if err := patchRootTsconfig(frontendDir); err != nil {
+		return fmt.Errorf("patch root tsconfig: %w", err)
+	}
+	if err := patchAppTsconfig(frontendDir); err != nil {
+		return fmt.Errorf("patch app tsconfig: %w", err)
+	}
+
+	// 2) Add shadcn-related deps
 	cmd := exec.Command("bun", "add",
 		"lucide-react",
 		"class-variance-authority",
@@ -430,7 +430,7 @@ func setupShadcnManualV4(frontendDir string) error {
 		return fmt.Errorf("bun add shadcn deps: %w", err)
 	}
 
-	// 2) components.json (unchanged except for confirming tailwind.config.ts / src/index.css)
+	// 3) components.json (points to tailwind.config.ts and src/index.css)
 	componentsJSON := `{
   "$schema": "https://ui.shadcn.com/schema.json",
   "style": "default",
@@ -455,7 +455,7 @@ func setupShadcnManualV4(frontendDir string) error {
 		return fmt.Errorf("write components.json: %w", err)
 	}
 
-	// 3) src/components/ui/button.tsx
+	// 4) src/components/ui/button.tsx
 	uiDir := filepath.Join(frontendDir, "src", "components", "ui")
 	if err := os.MkdirAll(uiDir, 0o755); err != nil {
 		return fmt.Errorf("create src/components/ui: %w", err)
@@ -518,7 +518,7 @@ export { Button, buttonVariants };
 		return fmt.Errorf("write button.tsx: %w", err)
 	}
 
-	// 4) src/lib/utils.ts for cn()
+	// 5) src/lib/utils.ts for cn()
 	libDir := filepath.Join(frontendDir, "src", "lib")
 	if err := os.MkdirAll(libDir, 0o755); err != nil {
 		return fmt.Errorf("create src/lib: %w", err)
