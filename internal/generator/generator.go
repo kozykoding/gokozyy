@@ -292,7 +292,7 @@ func setupShadcnManualV4(frontendDir string) error {
 		return fmt.Errorf("bun add shadcn deps: %w", err)
 	}
 
-	// 2) components.json pointing to tailwind.config.ts and src/index.css
+	// 2) components.json (unchanged except for confirming tailwind.config.ts / src/index.css)
 	componentsJSON := `{
   "$schema": "https://ui.shadcn.com/schema.json",
   "style": "default",
@@ -317,10 +317,10 @@ func setupShadcnManualV4(frontendDir string) error {
 		return fmt.Errorf("write components.json: %w", err)
 	}
 
-	// 3) components/ui/button.tsx
-	uiDir := filepath.Join(frontendDir, "components", "ui")
+	// 3) src/components/ui/button.tsx
+	uiDir := filepath.Join(frontendDir, "src", "components", "ui")
 	if err := os.MkdirAll(uiDir, 0o755); err != nil {
-		return fmt.Errorf("create components/ui: %w", err)
+		return fmt.Errorf("create src/components/ui: %w", err)
 	}
 
 	button := `import * as React from "react";
@@ -380,10 +380,10 @@ export { Button, buttonVariants };
 		return fmt.Errorf("write button.tsx: %w", err)
 	}
 
-	// 4) lib/utils.ts for cn()
-	libDir := filepath.Join(frontendDir, "lib")
+	// 4) src/lib/utils.ts for cn()
+	libDir := filepath.Join(frontendDir, "src", "lib")
 	if err := os.MkdirAll(libDir, 0o755); err != nil {
-		return fmt.Errorf("create lib/: %w", err)
+		return fmt.Errorf("create src/lib: %w", err)
 	}
 
 	utils := `import { clsx, type ClassValue } from "clsx";
@@ -398,10 +398,10 @@ export function cn(...inputs: ClassValue[]) {
 		[]byte(utils),
 		0o644,
 	); err != nil {
-		return fmt.Errorf("write lib/utils.ts: %w", err)
+		return fmt.Errorf("write src/lib/utils.ts: %w", err)
 	}
 
-	fmt.Println("◦ shadcn/ui (manual v4) installed: components.json, components/ui/button.tsx, lib/utils.ts")
+	fmt.Println("◦ shadcn/ui (manual v4) installed: components.json, src/components/ui/button.tsx, src/lib/utils.ts")
 	return nil
 }
 
