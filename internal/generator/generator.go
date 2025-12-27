@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -250,60 +249,6 @@ func patchViteConfigForTailwind(frontendDir string) error {
 
 	newContent := strings.Join(lines, "\n")
 	return os.WriteFile(vitePath, []byte(newContent), 0o644)
-}
-
-func ensureTsconfigAlias(frontendDir string) error {
-	if err := patchTsconfig(filepath.Join(frontendDir, "tsconfig.json")); err != nil {
-		return err
-	}
-	if err := patchTsconfig(filepath.Join(frontendDir, "tsconfig.app.json")); err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-	}
-	return nil
-}
-
-func patchTsconfig(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-
-	// "compilerOptions": { "baseUrl": ".", "paths": { "@/*": ["./src/*"] } }
-
-	var ts map[string]any
-	if err := json.Unmarshal(data, &ts); err != nil {
-		return err
-	}
-
-	compiler, _ := ts["compilerOptions"].(map[string]any)
-	if compiler == nil {
-		compiler = map[string]any{}
-	}
-
-	if _, ok := compiler["baseUrl"]; !ok {
-		compiler["baseUrl"] = "."
-	}
-
-	paths, _ := compiler["paths"].(map[string]any)
-	if paths == nil {
-		paths = map[string]any{}
-	}
-
-	if _, ok := paths["@/*"]; !ok {
-		paths["@/*"] = []any{"./src/*"}
-	}
-
-	compiler["paths"] = paths
-	ts["compilerOptions"] = compiler
-
-	out, err := json.MarshalIndent(ts, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(path, out, 0o644)
 }
 
 func writeViteConfigWithTailwindV4(frontendDir string) error {
