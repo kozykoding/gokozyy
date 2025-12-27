@@ -320,8 +320,8 @@ func ensureRootTsconfigAlias(frontendDir string) error {
 
 func patchRootTsconfig(frontendDir string) error {
 	tsconfigPath := filepath.Join(frontendDir, "tsconfig.json")
-	fmt.Printf("  [DEBUG] Overwriting tsconfig.json: %s\n", tsconfigPath)
 
+	// No parsing, no "invalid character" errors.
 	content := `{
   "files": [],
   "references": [
@@ -341,10 +341,8 @@ func patchRootTsconfig(frontendDir string) error {
 
 func patchAppTsconfig(frontendDir string) error {
 	appPath := filepath.Join(frontendDir, "tsconfig.app.json")
-	fmt.Printf("  [DEBUG] Overwriting tsconfig.app.json: %s\n", appPath)
 
-	// Since we can't easily parse the existing one with comments,
-	// we provide a clean, modern version that includes the alias.
+	// This preserves the default Vite settings but adds shadcn requirements.
 	content := `{
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
