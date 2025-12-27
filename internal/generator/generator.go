@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -32,9 +33,17 @@ func generateFrontend(cfg Config) error {
 		return fmt.Errorf("bun install: %w", err)
 	}
 
-	// Tailwind v4 setup (works with or without shadcn)
+	// Tailwind v4 setup
 	if err := setupTailwindV4(frontendDir); err != nil {
 		return fmt.Errorf("tailwind v4 setup: %w", err)
+	}
+
+	// Patch tsconfig files for shadcn / alias behavior
+	if err := patchRootTsconfig(frontendDir); err != nil {
+		return fmt.Errorf("patch root tsconfig: %w", err)
+	}
+	if err := patchAppTsconfig(frontendDir); err != nil {
+		return fmt.Errorf("patch app tsconfig: %w", err)
 	}
 
 	// Optional shadcn manual install
@@ -140,7 +149,7 @@ func main() {
 func setupTailwindV4(frontendDir string) error {
 	fmt.Println("◦ Installing Tailwind CSS v4 (Vite plugin)...")
 
-	// Install tailwindcss, the Vite plugin, and @types/node
+	// Install tailwindcss and the Vite plugin (and @types/node for TS tooling)
 	cmd := exec.Command("bun", "add", "-D",
 		"tailwindcss",
 		"@tailwindcss/vite",
@@ -174,10 +183,8 @@ export default config;
 		return fmt.Errorf("write tailwind.config.ts: %w", err)
 	}
 
-	// Tailwind directives in index.css
-	indexCSS := `@tailwind base;
-@tailwind components;
-@tailwind utilities;
+	// Tailwind v4 CSS entry: @import "tailwindcss";
+	indexCSS := `@import "tailwindcss";
 `
 	if err := os.WriteFile(
 		filepath.Join(frontendDir, "src", "index.css"),
@@ -203,7 +210,7 @@ export default config;
 		}
 	}
 
-	// Overwrite vite.config.ts to use the Tailwind Vite plugin and @ alias
+	// Vite config with Tailwind plugin + @ alias
 	if err := writeViteConfigWithTailwindV4(frontendDir); err != nil {
 		return err
 	}
@@ -272,6 +279,136 @@ export default defineConfig({
 		[]byte(viteContent),
 		0o644,
 	)
+}
+
+func ensureRootTsconfigAlias(frontendDir string) error {
+	tsconfigPath := filepath.Join(frontendDir, "tsconfig.json")
+
+	data, err := os.ReadFile(tsconfigPath)
+	if err != nil {
+		return fmt.Errorf("read tsconfig.json: %w", err)
+	}
+
+	var ts map[string]any
+	if err := json.Unmarshal(data, &ts); err != nil {
+		return fmt.Errorf("parse tsconfig.json: %w", err)
+	}
+
+	compiler, _ := ts["compilerOptions"].(map[string]any)
+	if compiler == nil {
+		compiler = map[string]any{}
+	}
+
+	if _, ok := compiler["baseUrl"]; !ok {
+		compiler["baseUrl"] = "."
+	}
+
+	paths, _ := compiler["paths"].(map[string]any)
+	if paths == nil {
+		paths = map[string]any{}
+	}
+	if _, ok := paths["@/*"]; !ok {
+		paths["@/*"] = []any{"./src/*"}
+	}
+
+	compiler["paths"] = paths
+	ts["compilerOptions"] = compiler
+
+	out, err := json.MarshalIndent(ts, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal tsconfig.json: %w", err)
+	}
+
+	if err := os.WriteFile(tsconfigPath, out, 0o644); err != nil {
+		return fmt.Errorf("write tsconfig.json: %w", err)
+	}
+
+	return nil
+}
+
+func patchRootTsconfig(frontendDir string) error {
+	tsconfigPath := filepath.Join(frontendDir, "tsconfig.json")
+
+	data, err := os.ReadFile(tsconfigPath)
+	if err != nil {
+		return fmt.Errorf("read tsconfig.json: %w", err)
+	}
+
+	// Parse what is there already
+	var ts map[string]any
+	if err := json.Unmarshal(data, &ts); err != nil {
+		return fmt.Errorf("parse tsconfig.json: %w", err)
+	}
+
+	// Add / update compilerOptions
+	compiler, _ := ts["compilerOptions"].(map[string]any)
+	if compiler == nil {
+		compiler = map[string]any{}
+	}
+
+	compiler["baseUrl"] = "."
+	paths, _ := compiler["paths"].(map[string]any)
+	if paths == nil {
+		paths = map[string]any{}
+	}
+	paths["@/*"] = []any{"./src/*"}
+
+	compiler["paths"] = paths
+	ts["compilerOptions"] = compiler
+
+	out, err := json.MarshalIndent(ts, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal tsconfig.json: %w", err)
+	}
+
+	if err := os.WriteFile(tsconfigPath, out, 0o644); err != nil {
+		return fmt.Errorf("write tsconfig.json: %w", err)
+	}
+
+	return nil
+}
+
+func patchAppTsconfig(frontendDir string) error {
+	appPath := filepath.Join(frontendDir, "tsconfig.app.json")
+
+	data, err := os.ReadFile(appPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // some templates may not have this file
+		}
+		return fmt.Errorf("read tsconfig.app.json: %w", err)
+	}
+
+	var ts map[string]any
+	if err := json.Unmarshal(data, &ts); err != nil {
+		return fmt.Errorf("parse tsconfig.app.json: %w", err)
+	}
+
+	compiler, _ := ts["compilerOptions"].(map[string]any)
+	if compiler == nil {
+		compiler = map[string]any{}
+	}
+
+	compiler["baseUrl"] = "."
+	paths, _ := compiler["paths"].(map[string]any)
+	if paths == nil {
+		paths = map[string]any{}
+	}
+	paths["@/*"] = []any{"./src/*"}
+
+	compiler["paths"] = paths
+	ts["compilerOptions"] = compiler
+
+	out, err := json.MarshalIndent(ts, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal tsconfig.app.json: %w", err)
+	}
+
+	if err := os.WriteFile(appPath, out, 0o644); err != nil {
+		return fmt.Errorf("write tsconfig.app.json: %w", err)
+	}
+
+	return nil
 }
 
 func setupShadcnManualV4(frontendDir string) error {
