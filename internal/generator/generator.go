@@ -330,25 +330,27 @@ export default defineConfig({
 func setupShadcn(frontendDir string) error {
 	fmt.Println("◦ Setting up shadcn/ui...")
 
-	// 1) Ensure tsconfig alias (@/* → ./src/*) in both tsconfig.json and tsconfig.app.json
+	// 1) Ensure tsconfig alias (@/* -> ./src/*) in both tsconfigs
 	if err := ensureTsconfigAlias(frontendDir); err != nil {
 		return fmt.Errorf("tsconfig alias: %w", err)
 	}
 
-	// 2) Run shadcn init using Bun
+	// 2) Run shadcn init using Bun, *interactively*
 	initCmd := exec.Command("bunx", "--bun", "shadcn@latest", "init")
 	initCmd.Dir = frontendDir
 	initCmd.Stdout = os.Stdout
 	initCmd.Stderr = os.Stderr
+	initCmd.Stdin = os.Stdin // IMPORTANT: forward stdin so you can answer questions
 	if err := initCmd.Run(); err != nil {
 		return err
 	}
 
-	// 3) Add button component
+	// 3) Add a basic component (also interactive if needed)
 	addCmd := exec.Command("bunx", "--bun", "shadcn@latest", "add", "button")
 	addCmd.Dir = frontendDir
 	addCmd.Stdout = os.Stdout
 	addCmd.Stderr = os.Stderr
+	addCmd.Stdin = os.Stdin // again, forward stdin
 	if err := addCmd.Run(); err != nil {
 		return err
 	}
