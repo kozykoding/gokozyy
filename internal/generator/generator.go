@@ -44,13 +44,6 @@ func generateFrontend(cfg Config) error {
 		}
 	}
 
-	fmt.Println()
-	fmt.Printf("Done! Don't forget to cd %s.\n", cfg.ProjectName)
-	fmt.Println("Now run:")
-	fmt.Println("  cd frontend")
-	fmt.Println("  bun dev")
-	fmt.Println()
-
 	return nil
 }
 

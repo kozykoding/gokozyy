@@ -69,6 +69,14 @@ to quickly create a Cobra application.`,
 		if err := generator.Generate(cfg); err != nil {
 			return err
 		}
+
+		fmt.Println()
+		fmt.Printf("✅ Project %q created.\n", cfg.ProjectName)
+		fmt.Println("Now run:")
+		fmt.Printf("  cd %s && nvim .\n", cfg.ProjectName)
+		fmt.Println("  cd frontend && bun dev")
+		fmt.Println()
+
 		return nil
 	},
 }
