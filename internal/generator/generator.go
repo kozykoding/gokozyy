@@ -32,15 +32,15 @@ func generateFrontend(cfg Config) error {
 		return fmt.Errorf("bun install: %w", err)
 	}
 
-	// Tailwind setup (always, for both frontend options you defined)
-	if err := setupTailwind(frontendDir); err != nil {
-		return fmt.Errorf("tailwind setup: %w", err)
+	// Tailwind v4 setup (works with or without shadcn)
+	if err := setupTailwindV4(frontendDir); err != nil {
+		return fmt.Errorf("tailwind v4 setup: %w", err)
 	}
 
-	// shadcn/ui only if requested
+	// Optional shadcn manual install
 	if cfg.Frontend == "vite-react-tailwind-shadcn" {
-		if err := setupShadcn(frontendDir); err != nil {
-			return fmt.Errorf("shadcn setup: %w", err)
+		if err := setupShadcnManualV4(frontendDir); err != nil {
+			return fmt.Errorf("shadcn manual v4 setup: %w", err)
 		}
 	}
 
@@ -136,8 +136,8 @@ func main() {
 	return os.WriteFile(filepath.Join(dir, "main.go"), []byte(code), 0o644)
 }
 
-func setupTailwind(frontendDir string) error {
-	fmt.Println("◦ Installing Tailwind CSS (Vite plugin)...")
+func setupTailwindV4(frontendDir string) error {
+	fmt.Println("◦ Installing Tailwind CSS v4 (Vite plugin)...")
 
 	// Install tailwindcss, the Vite plugin, and @types/node
 	cmd := exec.Command("bun", "add", "-D",
@@ -149,10 +149,10 @@ func setupTailwind(frontendDir string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return err
+		return fmt.Errorf("bun add tailwind v4 deps: %w", err)
 	}
 
-	// Tailwind config in TypeScript
+	// Tailwind v4-style config in TypeScript
 	twConfig := `import type { Config } from "tailwindcss";
 
 const config: Config = {
@@ -170,7 +170,7 @@ export default config;
 		[]byte(twConfig),
 		0o644,
 	); err != nil {
-		return err
+		return fmt.Errorf("write tailwind.config.ts: %w", err)
 	}
 
 	// Tailwind directives in index.css
@@ -183,14 +183,14 @@ export default config;
 		[]byte(indexCSS),
 		0o644,
 	); err != nil {
-		return err
+		return fmt.Errorf("write src/index.css: %w", err)
 	}
 
 	// Ensure main.tsx imports index.css
 	mainPath := filepath.Join(frontendDir, "src", "main.tsx")
 	mainBytes, err := os.ReadFile(mainPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("read main.tsx: %w", err)
 	}
 	if !strings.Contains(string(mainBytes), `./index.css`) {
 		mainBytes = append(
@@ -198,12 +198,12 @@ export default config;
 			mainBytes...,
 		)
 		if err := os.WriteFile(mainPath, mainBytes, 0o644); err != nil {
-			return err
+			return fmt.Errorf("write main.tsx: %w", err)
 		}
 	}
 
-	// Overwrite vite.config.ts to match the Tailwind + alias pattern
-	if err := writeViteConfigWithTailwind(frontendDir); err != nil {
+	// Overwrite vite.config.ts to use the Tailwind Vite plugin and @ alias
+	if err := writeViteConfigWithTailwindV4(frontendDir); err != nil {
 		return err
 	}
 
@@ -304,7 +304,7 @@ func patchTsconfig(path string) error {
 	return os.WriteFile(path, out, 0o644)
 }
 
-func writeViteConfigWithTailwind(frontendDir string) error {
+func writeViteConfigWithTailwindV4(frontendDir string) error {
 	viteContent := `import path from "path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -327,52 +327,134 @@ export default defineConfig({
 	)
 }
 
-func setupShadcn(frontendDir string) error {
-	fmt.Println("◦ Setting up shadcn/ui with default options...")
+func setupShadcnManualV4(frontendDir string) error {
+	fmt.Println("◦ Setting up shadcn/ui (manual, Tailwind v4)...")
 
-	// 1) Ensure tsconfig alias (@/* -> ./src/*) in both tsconfig files
-	if err := ensureTsconfigAlias(frontendDir); err != nil {
-		return fmt.Errorf("tsconfig alias: %w", err)
-	}
-
-	// 2) Initialize shadcn/ui (auto-yes to questions)
-	fmt.Println("  - Running: bunx --bun shadcn@latest init (auto-yes)")
-	initCmd := exec.Command(
-		"bash",
-		"-lc",
-		"yes | bunx --bun shadcn@latest init",
+	// 1) Add shadcn-related deps
+	cmd := exec.Command("bun", "add",
+		"lucide-react",
+		"class-variance-authority",
+		"clsx",
+		"tailwind-merge",
+		"tailwindcss-animate",
 	)
-	initCmd.Dir = frontendDir
-	initCmd.Stdout = os.Stdout
-	initCmd.Stderr = os.Stderr
-	if err := initCmd.Run(); err != nil {
-		return fmt.Errorf("shadcn init: %w", err)
+	cmd.Dir = frontendDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("bun add shadcn deps: %w", err)
 	}
 
-	// 3) Add button component (no yes pipe unless we see it needed)
-	fmt.Println("  - Running: bunx --bun shadcn@latest add button")
-	addCmd := exec.Command(
-		"bash",
-		"-lc",
-		"bunx --bun shadcn@latest add button",
-	)
-	addCmd.Dir = frontendDir
-	addCmd.Stdout = os.Stdout
-	addCmd.Stderr = os.Stderr
-	if err := addCmd.Run(); err != nil {
-		return fmt.Errorf("shadcn add button: %w", err)
+	// 2) components.json pointing to tailwind.config.ts and src/index.css
+	componentsJSON := `{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "default",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.ts",
+    "css": "src/index.css",
+    "baseColor": "neutral"
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils"
+  }
+}
+`
+	if err := os.WriteFile(
+		filepath.Join(frontendDir, "components.json"),
+		[]byte(componentsJSON),
+		0o644,
+	); err != nil {
+		return fmt.Errorf("write components.json: %w", err)
 	}
 
-	// 4) Verify the button file exists; fail loudly if it doesn't.
-	buttonPath := filepath.Join(frontendDir, "components", "ui", "button.tsx")
-	if _, err := os.Stat(buttonPath); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("shadcn add button: expected %s but it was not created", buttonPath)
-		}
-		return fmt.Errorf("checking shadcn button file: %w", err)
+	// 3) components/ui/button.tsx
+	uiDir := filepath.Join(frontendDir, "components", "ui")
+	if err := os.MkdirAll(uiDir, 0o755); err != nil {
+		return fmt.Errorf("create components/ui: %w", err)
 	}
 
-	fmt.Println("◦ shadcn/ui initialized and button component added.")
+	button := `import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+
+import { cn } from "@/lib/utils";
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none",
+  {
+    variants: {
+      variant: {
+        default: "bg-neutral-900 text-neutral-50 hover:bg-neutral-800",
+        outline: "border border-neutral-200 hover:bg-neutral-100",
+      },
+      size: {
+        default: "h-9 px-4 py-2",
+        sm: "h-8 px-3",
+        lg: "h-10 px-8",
+      }
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button";
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    );
+  }
+);
+Button.displayName = "Button";
+
+export { Button, buttonVariants };
+`
+	if err := os.WriteFile(
+		filepath.Join(uiDir, "button.tsx"),
+		[]byte(button),
+		0o644,
+	); err != nil {
+		return fmt.Errorf("write button.tsx: %w", err)
+	}
+
+	// 4) lib/utils.ts for cn()
+	libDir := filepath.Join(frontendDir, "lib")
+	if err := os.MkdirAll(libDir, 0o755); err != nil {
+		return fmt.Errorf("create lib/: %w", err)
+	}
+
+	utils := `import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+`
+	if err := os.WriteFile(
+		filepath.Join(libDir, "utils.ts"),
+		[]byte(utils),
+		0o644,
+	); err != nil {
+		return fmt.Errorf("write lib/utils.ts: %w", err)
+	}
+
+	fmt.Println("◦ shadcn/ui (manual v4) installed: components.json, components/ui/button.tsx, lib/utils.ts")
 	return nil
 }
 
