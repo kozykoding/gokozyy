@@ -175,15 +175,25 @@ export default config;
 		return fmt.Errorf("write tailwind.config.ts: %w", err)
 	}
 
-	// Tailwind v4 CSS entry: @import "tailwindcss";
-	indexCSS := `@import "tailwindcss";
+	// Tailwind v4 CSS entry: ensure @import "tailwindcss"; is at the top
+	indexCSSPath := filepath.Join(frontendDir, "src", "index.css")
+	existingIndex, err := os.ReadFile(indexCSSPath)
+	if err != nil {
+		// If the file doesn't exist for some reason, create a minimal one
+		minimal := `@import "tailwindcss";
 `
-	if err := os.WriteFile(
-		filepath.Join(frontendDir, "src", "index.css"),
-		[]byte(indexCSS),
-		0o644,
-	); err != nil {
-		return fmt.Errorf("write src/index.css: %w", err)
+		if err := os.WriteFile(indexCSSPath, []byte(minimal), 0o644); err != nil {
+			return fmt.Errorf("write src/index.css: %w", err)
+		}
+	} else {
+		indexContent := string(existingIndex)
+		if !strings.Contains(indexContent, `@import "tailwindcss";`) {
+			indexContent = `@import "tailwindcss";
+` + indexContent
+			if err := os.WriteFile(indexCSSPath, []byte(indexContent), 0o644); err != nil {
+				return fmt.Errorf("write src/index.css: %w", err)
+			}
+		}
 	}
 
 	// Ensure main.tsx imports index.css
