@@ -25,12 +25,11 @@ var (
 var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new Go + Vite project with Bun",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Long: `A quick way to start up / bootstrap a project with
+	separate front and backends. Start it up by:
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+cd into the directory you want your project to be,
+then run the gokozyy create command and pick your options.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		m := ui.NewWizardModel()
 		p := tea.NewProgram(m)
