@@ -328,34 +328,34 @@ export default defineConfig({
 }
 
 func setupShadcn(frontendDir string) error {
-	fmt.Println("◦ Setting up shadcn/ui...")
+	fmt.Println("◦ Setting up shadcn/ui with default options...")
 
-	// 1) Ensure tsconfig alias (@/* -> ./src/*) in both tsconfigs
+	// 1) Ensure tsconfig alias (@/* -> ./src/*) in both tsconfig files
 	if err := ensureTsconfigAlias(frontendDir); err != nil {
 		return fmt.Errorf("tsconfig alias: %w", err)
 	}
 
-	// 2) Run shadcn init using Bun, *interactively*
-	initCmd := exec.Command("bunx", "--bun", "shadcn@latest", "init")
+	// 2) Run `shadcn init` and auto-accept defaults using `yes`
+	//    This chooses the default base color (e.g. Neutral) and
+	//    confirms creating components.json.
+	initCmd := exec.Command("bash", "-lc", "yes | bunx --bun shadcn@latest init")
 	initCmd.Dir = frontendDir
 	initCmd.Stdout = os.Stdout
 	initCmd.Stderr = os.Stderr
-	initCmd.Stdin = os.Stdin // IMPORTANT: forward stdin so you can answer questions
 	if err := initCmd.Run(); err != nil {
-		return err
+		return fmt.Errorf("shadcn init: %w", err)
 	}
 
-	// 3) Add a basic component (also interactive if needed)
-	addCmd := exec.Command("bunx", "--bun", "shadcn@latest", "add", "button")
+	// 3) Add a button component, also auto-confirm any prompts
+	addCmd := exec.Command("bash", "-lc", "yes | bunx --bun shadcn@latest add button")
 	addCmd.Dir = frontendDir
 	addCmd.Stdout = os.Stdout
 	addCmd.Stderr = os.Stderr
-	addCmd.Stdin = os.Stdin // again, forward stdin
 	if err := addCmd.Run(); err != nil {
-		return err
+		return fmt.Errorf("shadcn add button: %w", err)
 	}
 
-	fmt.Println("◦ shadcn/ui initialized and button component added.")
+	fmt.Println("◦ shadcn/ui initialized (default options) and button component added.")
 	return nil
 }
 
