@@ -125,13 +125,22 @@ func generateBackend(cfg Config) error {
 		return fmt.Errorf(".gitignore: %w", err)
 	}
 
-	// 6) Optional Docker files
+	// 6) makefile
+	if err := writeMakefile(cfg); err != nil {
+		return fmt.Errorf("makefile: %w", err)
+	}
+
+	// NEW: 7) Write Air config for hot reloading
+	if err := writeAirConfig(cfg); err != nil {
+		return fmt.Errorf("air config: %w", err)
+	}
+
+	// 8) Optional Docker files
 	if cfg.UseDocker {
 		if err := writeDockerFiles(cfg, backendDir); err != nil {
 			return fmt.Errorf("docker: %w", err)
 		}
 	}
-
 	return nil
 }
 

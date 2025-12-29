@@ -26,10 +26,10 @@ var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new Go + Vite project with Bun",
 	Long: `A quick way to start up / bootstrap a project with
-	separate front and backends. Start it up by:
+separate front and backends. 
 
-cd into the directory you want your project to be,
-then run the gokozyy create command and pick your options.`,
+Run the gokozyy create command inside the directory where you want 
+your new project folder to be created.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		m := ui.NewWizardModel()
 		p := tea.NewProgram(m)
@@ -46,7 +46,6 @@ then run the gokozyy create command and pick your options.`,
 			return nil
 		}
 
-		// Uncomment for prod
 		cfg := generator.Config{
 			ProjectName: res.ProjectName,
 			Framework:   res.Framework,
@@ -56,25 +55,25 @@ then run the gokozyy create command and pick your options.`,
 			UseDocker:   res.UseDocker,
 		}
 
-		// for testing
-		// simple demo: create folder
-		//	if err := os.MkdirAll(res.ProjectName, 0o755); err != nil {
-		//		return err
-		//	}
-
-		//	return nil
-
-		// for production to create
 		if err := generator.Generate(cfg); err != nil {
 			return err
 		}
 
 		fmt.Println()
-		fmt.Printf("✅ Project %q created.\n", cfg.ProjectName)
-		fmt.Println("Now run:")
-		fmt.Printf("  cd %s && nvim .\n", cfg.ProjectName)
-		fmt.Println("  cd frontend && bun dev")
+		fmt.Printf("✅ Project %q created successfully!\n", cfg.ProjectName)
 		fmt.Println()
+		fmt.Println("🚀 Next steps to start nerding out:")
+		fmt.Printf("  1. cd %s && nvim .\n", cfg.ProjectName)
+
+		// Only show docker instruction if they chose Docker + Postgres
+		if cfg.UseDocker && cfg.DBDriver == "postgres" {
+			fmt.Println("  2. make docker-run         # Start your Postgres database")
+		}
+
+		fmt.Println("  3. make watch              # Start backend with hot-reload (Air)")
+		fmt.Println("  4. cd frontend && bun dev   # Start React frontend environment")
+		fmt.Println()
+		fmt.Println("Happy coding!")
 
 		return nil
 	},
@@ -82,14 +81,4 @@ then run the gokozyy create command and pick your options.`,
 
 func init() {
 	rootCmd.AddCommand(createCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// createCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// createCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
